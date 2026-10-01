@@ -10,6 +10,7 @@ from google.genai import errors
 
 from src.scraper import fetch_url_content
 from src.llm import generate_analysis, AVAILABLE_MODES
+from src.pdf_gen import create_pdf_from_text
 
 st.set_page_config(
     page_title="Content Analyzer",
@@ -153,7 +154,7 @@ if st.session_state.output_data:
 
     st.divider()
     st.markdown("### Export Options")
-    col_md, col_txt = st.columns(2)
+    col_md, col_txt, col_pdf = st.columns(3)
 
     with col_md:
         st.download_button(
@@ -172,6 +173,22 @@ if st.session_state.output_data:
             mime="text/plain",
             use_container_width=True,
         )
+
+    with col_pdf:
+        try:
+            pdf_bytes = create_pdf_from_text(
+                title=f"Content Analyzer - {utility_mode}",
+                content=st.session_state.output_data,
+            )
+            st.download_button(
+                label="Download PDF (.pdf)",
+                data=pdf_bytes,
+                file_name="analysis.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+            )
+        except Exception as e:
+            st.error(f"Error preparing PDF: {e}")
 else:
     st.subheader("Features")
     c1, c2, c3 = st.columns(3)
