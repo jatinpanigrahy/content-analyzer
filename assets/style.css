@@ -1,0 +1,82 @@
+/* Application Theme Stylesheet */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+}
+
+/* Background layout */
+.stApp {
+    background-color: #0a0a0c;
+}
+
+/* Text input controls */
+.stTextArea textarea {
+    background-color: #121214 !important;
+    border: 1px solid #27272a !important;
+    color: #ededed !important;
+    border-radius: 8px;
+    padding: 12px;
+}
+
+/* Dropdown selection controls */
+.stSelectbox div[data-baseweb="select"] {
+    background-color: #121214 !important;
+    border: 1px solid #27272a !important;
+    border-radius: 8px;
+}
+
+div[data-baseweb="select"] input {
+    caret-color: transparent !important;
+    cursor: pointer !important;
+}
+
+/* Action and download buttons */
+.stButton button,
+.stDownloadButton button {
+    background-color: #ededed !important;
+    border: none !important;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    width: 100%;
+    padding: 0.5rem 1rem;
+}
+
+.stButton button p,
+.stButton button div,
+.stButton button span,
+.stDownloadButton button p,
+.stDownloadButton button div,
+.stDownloadButton button span {
+    color: #0a0a0c !important;
+    font-weight: 600 !important;
+}
+
+.stButton button:hover,
+.stDownloadButton button:hover {
+    background-color: #ffffff !important;
+    transform: translateY(-1px);
+}
+
+/* Container cards */
+div[data-testid="stContainer"] {
+    background-color: #121214;
+    border: 1px solid #27272a;
+    border-radius: 12px;
+    padding: 1.25rem;
+}
+
+/* Typography and headings */
+h1, h2, h3, p, span, div {
+    color: #ededed;
+}
+
+/* Captions and metadata text */
+.stCaption, .stCaption p {
+    color: #a1a1aa !important;
+}
+
+/* Hide default platform menu and footer */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}

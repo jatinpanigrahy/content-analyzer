@@ -1,16 +1,22 @@
-# Environments
+# Virtual Environments
 .venv/
 env/
 venv/
+ENV/
 
-# Python
+# Python Cache
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
 
-# Config
+# Local Configuration and Secrets
 .streamlit/secrets.toml
 
-# Guided Integration Artifacts
+# Internal Planning and Documentation
 docs/
 .agents/
 AGENTS.md
+
+# Operating System Files
+.DS_Store
+Thumbs.db

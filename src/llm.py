@@ -1,10 +1,12 @@
 """LLM inference and prompt management module.
 
 Interfaces with the Google Gemini GenAI SDK to generate structured
-insights across multiple analysis modes.
+insights across multiple analysis modes with dynamic model discovery
+and automatic fallback.
 """
 
 from google import genai
+from google.genai import errors
 
 ANALYSIS_PROMPTS: dict[str, str] = {
     "Core Summary": (
@@ -132,6 +134,12 @@ ANALYSIS_PROMPTS: dict[str, str] = {
 
 AVAILABLE_MODES: list[str] = list(ANALYSIS_PROMPTS.keys())
 
+# Curated fallback models used if dynamic discovery is unavailable
+FALLBACK_MODELS: list[str] = [
+    "gemini-3.8-flash",
+    "gemini-3.6-flash",
+]
+
 
 def build_prompt(content: str, mode: str) -> str:
     """Build the prompt template for a given mode and content.
@@ -153,26 +161,73 @@ def build_prompt(content: str, mode: str) -> str:
     return template.format(content=content)
 
 
+def get_candidate_models(client: genai.Client) -> list[str]:
+    """Discover available stable Flash models from the Gemini API.
+
+    Queries the API for available models, filters for stable Flash variants,
+    and prioritizes higher version numbers. Automatically falls back to
+    curated defaults if the discovery call encounters an issue.
+
+    Args:
+        client: The initialized Google GenAI client instance.
+
+    Returns:
+        A prioritized list of model identifier strings.
+    """
+    try:
+        discovered: list[str] = []
+        for model in client.models.list():
+            raw_name = getattr(model, "name", "")
+            clean_name = raw_name.replace("models/", "").strip()
+            name_lower = clean_name.lower()
+
+            # Include stable flash models while filtering out experimental or specialized builds
+            if "flash" in name_lower and not any(
+                tag in name_lower
+                for tag in ["-exp", "-preview", "thinking", "embed", "imagen"]
+            ):
+                discovered.append(clean_name)
+
+        if discovered:
+            # Sort descending to favor newer release versions
+            discovered.sort(reverse=True)
+            # Ensure our known reliable models are in the chain
+            for fallback in FALLBACK_MODELS:
+                if fallback not in discovered:
+                    discovered.append(fallback)
+            return discovered
+    except Exception:
+        # Fall back gracefully to curated models if discovery fails
+        pass
+
+    return list(FALLBACK_MODELS)
+
+
 def generate_analysis(
     content: str,
     mode: str,
     api_key: str,
-    model: str = "gemini-2.5-flash",
-) -> str:
+    model: str | None = None,
+) -> tuple[str, str]:
     """Call Google Gemini to analyze content using the selected mode.
+
+    Dynamically selects available Flash models and automatically cascades
+    through alternative models if temporary capacity (503), rate limit (429),
+    or availability (404) errors occur.
 
     Args:
         content: The plain text content to analyze.
         mode: The desired analysis format.
         api_key: The Google Gemini API key.
-        model: Gemini model identifier.
+        model: Optional specific model identifier override.
 
     Returns:
-        The markdown-formatted response string from the model.
+        A tuple of (markdown_response_text, model_identifier_used).
 
     Raises:
         ValueError: If content or api_key is missing, or mode is invalid.
-        google.genai.errors.APIError: If the Gemini API request fails.
+        google.genai.errors.APIError: If all candidate models fail due to API communication errors.
+        RuntimeError: If model execution finishes without generating text.
     """
     if not api_key:
         raise ValueError("GEMINI_API_KEY must be provided.")
@@ -182,12 +237,40 @@ def generate_analysis(
     prompt = build_prompt(content=content.strip(), mode=mode)
     client = genai.Client(api_key=api_key)
 
-    response = client.models.generate_content(
-        model=model,
-        contents=prompt,
-    )
+    candidates = [model] if model else get_candidate_models(client)
 
-    if not response.text:
-        raise ValueError("Model returned an empty response.")
+    last_error: Exception | None = None
 
-    return response.text
+    for candidate in candidates:
+        try:
+            response = client.models.generate_content(
+                model=candidate,
+                contents=prompt,
+            )
+            if response.text and response.text.strip():
+                return response.text, candidate
+        except errors.APIError as exc:
+            last_error = exc
+            error_code = getattr(exc, "code", None)
+            error_msg = str(exc)
+            # If the model is experiencing temporary capacity issues (503),
+            # rate limits (429), or is unavailable (404), cascade to the next candidate
+            is_transient = (
+                error_code in (404, 429, 503)
+                or "503" in error_msg
+                or "429" in error_msg
+                or "404" in error_msg
+            )
+            if is_transient and candidate != candidates[-1]:
+                continue
+            raise exc
+        except Exception as exc:
+            last_error = exc
+            if candidate != candidates[-1]:
+                continue
+            raise exc
+
+    if last_error:
+        raise last_error
+
+    raise RuntimeError("Model evaluation completed without generating response text.")
