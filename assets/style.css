@@ -1,8 +1,9 @@
 /* Application Theme Stylesheet */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600;700;800&display=swap');
 
+/* Global typographic defaults */
 html, body, [class*="css"] {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 /* Background layout */
@@ -10,27 +11,85 @@ html, body, [class*="css"] {
     background-color: #f8fafc;
 }
 
-/* Typography and headings */
-h1 {
-    font-family: 'Manrope', sans-serif !important;
+/* Primary heading hierarchy */
+h1,
+[data-testid="stHeadingWithActionElements"] h1 {
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif !important;
     color: #0f172a !important;
-    font-size: clamp(2rem, 3.5vw, 2.75rem) !important;
+    font-size: clamp(2.35rem, 5vw, 3.25rem) !important;
     font-weight: 800 !important;
-    letter-spacing: 0.05em !important;
-    text-transform: uppercase !important;
+    letter-spacing: -0.025em !important;
     line-height: 1.15 !important;
-    margin-bottom: 0.5rem !important;
+    text-transform: none !important;
 }
 
-h2, h3 {
-    font-family: 'Manrope', sans-serif !important;
+/* Heading inner text size alignment */
+h1 span:not([data-testid="stIconMaterial"]):not([class*="material"]),
+h1 p,
+h1 div {
+    font-size: inherit !important;
+    font-weight: inherit !important;
+    color: inherit !important;
+    letter-spacing: inherit !important;
+    line-height: inherit !important;
+}
+
+/* Secondary headings */
+h2,
+[data-testid="stHeadingWithActionElements"] h2 {
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif !important;
     color: #0f172a !important;
+    font-size: clamp(1.4rem, 2.5vw, 1.75rem) !important;
     font-weight: 700 !important;
+    letter-spacing: -0.02em !important;
 }
 
-div[data-testid="stMarkdownContainer"] p,
-div[data-testid="stMarkdownContainer"] li,
-div[data-testid="stMarkdownContainer"] span {
+h3,
+[data-testid="stHeadingWithActionElements"] h3 {
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    color: #0f172a !important;
+    font-size: 1.25rem !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.015em !important;
+}
+
+/* Icon glyph font preservation */
+span[data-testid="stIconMaterial"],
+[data-testid="stIconMaterial"],
+[class*="material-symbols"] {
+    font-family: 'Material Symbols Rounded', 'Material Symbols Outlined', 'Material Icons' !important;
+    font-weight: normal !important;
+    font-style: normal !important;
+    font-size: inherit !important;
+    line-height: 1 !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    display: inline-block !important;
+    white-space: nowrap !important;
+    word-wrap: normal !important;
+    direction: ltr !important;
+    -webkit-font-feature-settings: 'liga' !important;
+    -webkit-font-smoothing: antialiased !important;
+}
+
+/* Header section presentation */
+[data-testid="stHeadingWithActionElements"] {
+    margin-top: 1.25rem !important;
+    margin-bottom: 0.25rem !important;
+}
+
+.header-subtitle {
+    color: #475569 !important;
+    font-size: 1.05rem !important;
+    line-height: 1.5 !important;
+    margin-top: 0.25rem !important;
+    margin-bottom: 2rem !important;
+    font-weight: 400 !important;
+}
+
+/* Body and markdown text scoping */
+div[data-testid="stMarkdownContainer"] > p,
+div[data-testid="stMarkdownContainer"] li {
     color: #334155;
     line-height: 1.6;
     font-size: 1rem;
@@ -41,7 +100,7 @@ div[data-testid="stContainer"] {
     background-color: #ffffff;
     border: 1px solid #cbd5e1;
     border-radius: 12px;
-    padding: 1.5rem;
+    padding: 1.75rem;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
 }
 
@@ -144,7 +203,37 @@ div[data-testid="stStatus"] span {
     font-family: 'Inter', sans-serif;
 }
 
-/* Metadata captions and badge formatting */
+/* Model indicator badge component */
+.model-badge-container {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.model-badge-label {
+    color: #475569;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8125rem;
+    font-weight: 500;
+}
+
+.model-badge-pill {
+    display: inline-flex;
+    align-items: center;
+    background-color: #f1f5f9;
+    color: #0f172a;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-family: 'Inter', monospace;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+/* Fallback caption metadata badge */
 .stCaption, .stCaption p {
     color: #475569 !important;
     font-size: 0.875rem !important;
@@ -160,7 +249,7 @@ div[data-testid="stStatus"] span {
     font-size: 0.8125rem !important;
     border: 1px solid #cbd5e1 !important;
     border-radius: 6px !important;
-    padding: 2px 8px !important;
+    padding: 3px 10px !important;
     margin-left: 4px !important;
 }
 

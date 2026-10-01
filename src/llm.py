@@ -1,11 +1,12 @@
 """LLM inference and prompt management module for Content Analyzer.
 
-Interfaces with the Google Gemini GenAI SDK to generate structured
-insights across multiple analysis modes, featuring dynamic frontier model
-discovery and cascading fallback.
+Interfaces with the Google GenAI SDK to generate structured insights
+across multiple analysis modes, featuring cached model discovery,
+adaptive routing, and cascading error fallback.
 """
 
 import re
+import time
 from google import genai
 from google.genai import errors
 
@@ -109,7 +110,7 @@ ANALYSIS_PROMPTS: dict[str, str] = {
         "Execution Protocol:\n"
         "1. Craft an insight-driven opening line (hook) that highlights the core discovery or problem without clickbait.\n"
         "2. Present 2-4 tight, readable paragraphs or scannable bullet points detailing the key takeaways.\n"
-        "3. Conclude with a grounded, reflective question that invites professional discussion.\n\n"
+        "3. Conclude with a reflective question that invites professional discussion.\n\n"
         "Constraints:\n"
         "- Maintain an authentic, authoritative tone. Avoid buzzwords and performative hype.\n"
         "- Emoji usage strictly limited to 1-2 functional accents (no emoji spam).\n"
@@ -127,7 +128,7 @@ ANALYSIS_PROMPTS: dict[str, str] = {
         "- Tone must be conversational, warm, and natural—like messaging a thoughtful colleague.\n"
         "- Maintain substance and maturity; avoid slang, exaggeration, or childish phrasing.\n"
         "- No corporate jargon or stiff formal phrasing.\n"
-        "- Emoji Rule: Strictly minimal and meaningful. Use at most 1 to 2 emojis in the entire output, and only where they serve a functional purpose. Never place emojis consecutively, and never use hype emojis (e.g., no 🚀, 🔥, or 🎉). If in doubt, use zero emojis.\n"
+        "- Emoji Rule: Strictly minimal and meaningful. Use at most 1 to 2 emojis in the entire output, and only where they serve a functional purpose. Never place emojis consecutively, and never use hype emojis (e.g., no rocket, fire, or party icons). If in doubt, use zero emojis.\n"
         "- Output only the message text.\n\n"
         "Content:\n{content}"
     ),
@@ -137,14 +138,15 @@ AVAILABLE_MODES: list[str] = list(ANALYSIS_PROMPTS.keys())
 
 # Curated fallback models ordered by capability tier if dynamic discovery is unavailable
 FALLBACK_MODELS: list[str] = [
-    "gemini-pro-latest",
     "gemini-3.8-flash",
     "gemini-3.7-flash",
     "gemini-3.6-flash",
-    "gemini-flash-latest",
+    "gemini-3-flash-preview",
+    "gemini-3.5-flash",
+    "gemini-pro-latest",
 ]
 
-# Tags indicating specialized, non-text, or lightweight models excluded from general inference
+# Tags indicating discontinued, specialized, non-text, or lightweight models excluded from inference
 EXCLUDED_MODEL_TAGS: list[str] = [
     "lite",
     "tts",
@@ -163,7 +165,22 @@ EXCLUDED_MODEL_TAGS: list[str] = [
     "thinking",
     "computer-use",
     "aqa",
+    "2.5",
+    "2.0",
 ]
+
+# Discontinued model endpoints excluded from candidate lists
+DEPRECATED_MODELS: set[str] = {
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
+}
+
+# Cache duration for dynamic model discovery (1 hour)
+CACHE_TTL_SECONDS: float = 3600.0
+
+# In-memory discovery cache state
+_CACHED_CANDIDATE_MODELS: list[str] = []
+_CACHE_TIMESTAMP: float = 0.0
 
 
 def build_prompt(content: str, mode: str) -> str:
@@ -183,7 +200,7 @@ def build_prompt(content: str, mode: str) -> str:
     if not template:
         valid_modes = ", ".join(ANALYSIS_PROMPTS.keys())
         raise ValueError(f"Unknown mode '{mode}'. Expected one of: {valid_modes}")
-    return template.format(content=content)
+    return template.replace("{content}", content)
 
 
 def _model_sort_key(name: str) -> tuple[int, int, tuple[int, int]]:
@@ -217,19 +234,33 @@ def _model_sort_key(name: str) -> tuple[int, int, tuple[int, int]]:
     return (tier, stable_priority, version)
 
 
-def get_candidate_models(client: genai.Client) -> list[str]:
+def get_candidate_models(
+    client: genai.Client,
+    force_refresh: bool = False,
+) -> list[str]:
     """Discover and prioritize top frontier models available from the Gemini API.
 
-    Queries the API, filters out lightweight, specialized, and non-text variants,
-    and sorts candidate models to prioritize highest-capability frontier tiers
-    (Pro variants followed by flagship Flash releases in descending version order).
+    Maintains an in-memory TTL cache to eliminate redundant network roundtrips.
+    Filters out discontinued, lightweight, specialized, and non-text variants,
+    sorting candidates by capability tier and version release.
 
     Args:
         client: The initialized Google GenAI client instance.
+        force_refresh: When True, bypasses the in-memory cache and re-queries the API.
 
     Returns:
         A prioritized list of model identifier strings.
     """
+    global _CACHED_CANDIDATE_MODELS, _CACHE_TIMESTAMP
+
+    now = time.time()
+    if (
+        not force_refresh
+        and _CACHED_CANDIDATE_MODELS
+        and (now - _CACHE_TIMESTAMP) < CACHE_TTL_SECONDS
+    ):
+        return list(_CACHED_CANDIDATE_MODELS)
+
     try:
         discovered: list[str] = []
         for model in client.models.list():
@@ -238,6 +269,9 @@ def get_candidate_models(client: genai.Client) -> list[str]:
             name_lower = clean_name.lower()
 
             if not name_lower.startswith("gemini"):
+                continue
+
+            if clean_name in DEPRECATED_MODELS:
                 continue
 
             if any(tag in name_lower for tag in EXCLUDED_MODEL_TAGS):
@@ -251,13 +285,19 @@ def get_candidate_models(client: genai.Client) -> list[str]:
         if discovered:
             discovered.sort(key=_model_sort_key, reverse=True)
             for fallback in FALLBACK_MODELS:
-                if fallback not in discovered:
+                if fallback not in discovered and fallback not in DEPRECATED_MODELS:
                     discovered.append(fallback)
-            return discovered
+
+            _CACHED_CANDIDATE_MODELS = discovered
+            _CACHE_TIMESTAMP = now
+            return list(discovered)
     except Exception:
         pass
 
-    return list(FALLBACK_MODELS)
+    fallback_list = [m for m in FALLBACK_MODELS if m not in DEPRECATED_MODELS]
+    _CACHED_CANDIDATE_MODELS = fallback_list
+    _CACHE_TIMESTAMP = now
+    return list(fallback_list)
 
 
 def generate_analysis(
@@ -265,18 +305,22 @@ def generate_analysis(
     mode: str,
     api_key: str,
     model: str | None = None,
+    preferred_model: str | None = None,
 ) -> tuple[str, str]:
     """Execute LLM inference for content analysis with automated failover.
 
-    Evaluates candidate models in order of capability, automatically cascading
-    to alternative models if transient capacity (503), rate limit (429), or
-    model availability (404) exceptions occur.
+    Evaluates candidate models in order of capability, with support for
+    sticky preferred routing to avoid repeated fallback roundtrips.
+    Automatically cascades to alternative models if capacity (503),
+    quota limits (429), or endpoint errors (404) occur, adaptively
+    deprioritizing problematic endpoints for subsequent calls.
 
     Args:
         content: The plain text content to analyze.
         mode: The desired analysis format.
         api_key: The Google Gemini API key.
-        model: Optional specific model identifier override.
+        model: Optional explicit model override.
+        preferred_model: Optional known-good model to attempt first before fallback.
 
     Returns:
         A tuple of (markdown_response_text, model_identifier_used).
@@ -286,6 +330,8 @@ def generate_analysis(
         google.genai.errors.APIError: If all candidate models fail due to API errors.
         RuntimeError: If model execution finishes without generating text.
     """
+    global _CACHED_CANDIDATE_MODELS
+
     if not api_key:
         raise ValueError("GEMINI_API_KEY must be provided.")
     if not content or not content.strip():
@@ -294,7 +340,13 @@ def generate_analysis(
     prompt = build_prompt(content=content.strip(), mode=mode)
     client = genai.Client(api_key=api_key)
 
-    candidates = [model] if model else get_candidate_models(client)
+    if model:
+        candidates = [model]
+    else:
+        candidates = get_candidate_models(client)
+        if preferred_model:
+            # Promote the preferred model to the front to eliminate failover latency
+            candidates = [preferred_model] + [m for m in candidates if m != preferred_model]
 
     last_error: Exception | None = None
 
@@ -310,8 +362,23 @@ def generate_analysis(
             last_error = exc
             error_code = getattr(exc, "code", None)
             error_msg = str(exc)
-            # If the model encounters temporary capacity spikes (503), quota limits (429),
-            # or deprecated availability (404), cascade to the next candidate
+
+            # Evict discontinued 404 endpoints so they are never retried
+            if (error_code == 404 or "404" in error_msg) and candidate in _CACHED_CANDIDATE_MODELS:
+                while candidate in _CACHED_CANDIDATE_MODELS:
+                    _CACHED_CANDIDATE_MODELS.remove(candidate)
+
+            # Demote rate-limited (429) or high-demand (503) endpoints to the end of cache
+            if (
+                error_code in (429, 503)
+                or "429" in error_msg
+                or "503" in error_msg
+            ) and candidate in _CACHED_CANDIDATE_MODELS:
+                while candidate in _CACHED_CANDIDATE_MODELS:
+                    _CACHED_CANDIDATE_MODELS.remove(candidate)
+                _CACHED_CANDIDATE_MODELS.append(candidate)
+
+            # Cascade across transient capacity, rate limit, or endpoint errors
             is_transient = (
                 error_code in (404, 429, 503)
                 or "503" in error_msg

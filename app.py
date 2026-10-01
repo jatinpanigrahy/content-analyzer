@@ -75,9 +75,9 @@ def render_copy_button(text: str) -> None:
     components.html(button_html, height=45)
 
 
-# Page setup
+# Application page setup
 st.set_page_config(
-    page_title="CONTENT ANALYZER",
+    page_title="Content Analyzer",
     layout="wide",
     page_icon="assets/favicon.svg",
     initial_sidebar_state="collapsed",
@@ -96,9 +96,11 @@ if "model_used" not in st.session_state:
 _, center_col, _ = st.columns([1, 6, 1])
 
 with center_col:
-    st.title("CONTENT ANALYZER")
+    # Header display
+    st.title("Content Analyzer")
     st.markdown(
-        "Distill articles, notes, and links into clear, structured insights."
+        '<p class="header-subtitle">Distill articles, notes, and links into clear, structured insights.</p>',
+        unsafe_allow_html=True,
     )
 
     # Input card container
@@ -144,6 +146,7 @@ with center_col:
                                 content=target_content,
                                 mode=utility_mode,
                                 api_key=api_key,
+                                preferred_model=st.session_state.get("model_used"),
                             )
                             st.session_state.output_data = output_text
                             st.session_state.model_used = model_name
@@ -167,7 +170,13 @@ with center_col:
     if st.session_state.output_data:
         st.subheader("Output")
         if st.session_state.get("model_used"):
-            st.caption(f"Generated via `{st.session_state.model_used}`")
+            badge_html = f"""
+            <div class="model-badge-container">
+                <span class="model-badge-label">Generated via</span>
+                <span class="model-badge-pill">{st.session_state.model_used}</span>
+            </div>
+            """
+            st.markdown(badge_html, unsafe_allow_html=True)
 
         # Output card
         with st.container(border=True):
