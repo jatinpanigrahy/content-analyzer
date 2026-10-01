@@ -1,11 +1,18 @@
+"""Main application module for Content Analyzer.
+
+Provides an interactive user interface to ingest web URLs or raw text,
+route content through Google Gemini analysis modes, and export results
+as Markdown, Plain Text, or PDF.
+"""
+
 import streamlit as st
-import requests
-from bs4 import BeautifulSoup
-from google import genai
 from google.genai import errors
 
+from src.scraper import fetch_url_content
+from src.llm import generate_analysis, AVAILABLE_MODES
+
 st.set_page_config(
-    page_title="Text Intelligence",
+    page_title="Content Analyzer",
     layout="wide",
     page_icon="assets/favicon.svg",
     initial_sidebar_state="collapsed",
@@ -84,9 +91,9 @@ st.markdown(
 if "output_data" not in st.session_state:
     st.session_state.output_data = None
 
-st.title("Automated Text Intelligence")
+st.title("Content Analyzer")
 st.markdown(
-    "Transform articles, notes, or web pages into structured insights, summaries, or social content instantly."
+    "Transform articles, notes, or web pages into structured insights, summaries, or communication formats."
 )
 
 col_mode, col_input = st.columns([1, 3])
@@ -94,11 +101,7 @@ col_mode, col_input = st.columns([1, 3])
 with col_mode:
     utility_mode = st.selectbox(
         "Select Mode",
-        [
-            "Summarize Text",
-            "List The Actionable Steps",
-            "Turn into a Social Media message",
-        ],
+        AVAILABLE_MODES,
         label_visibility="collapsed",
     )
 
@@ -110,51 +113,31 @@ with col_input:
         label_visibility="collapsed",
     )
 
-execute_btn = st.button("Generate", type="primary")
+execute_btn = st.button("Analyze Content", type="primary")
 
 if execute_btn:
-    target_content = ""
-
     if user_input:
+        target_content = ""
         if user_input.startswith("http://") or user_input.startswith("https://"):
             try:
-                headers = {"User-Agent": "Mozilla/5.0"}
-                resp = requests.get(user_input, headers=headers, timeout=10)
-                if resp.status_code == 200:
-                    soup = BeautifulSoup(resp.text, "html.parser")
-                    for script in soup(["script", "style", "nav", "footer"]):
-                        script.decompose()
-                    target_content = soup.get_text(separator=" ", strip=True)
-                else:
-                    st.error("Failed to fetch URL.")
+                target_content = fetch_url_content(user_input)
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Scraping error: {e}")
         else:
             target_content = user_input
 
         if target_content:
             with st.spinner("Processing content..."):
                 try:
-                    api_key = st.secrets["GEMINI_API_KEY"]
-                    client = genai.Client(api_key=api_key)
-
-                    if utility_mode == "Summarize Text":
-                        prompt = f"Provide a clean summary and 3 key points for the following content:\n\n{target_content}"
-                    elif utility_mode == "List The Actionable Steps":
-                        prompt = f"Create a clear, prioritized list of actionable steps or deliverables from the following content:\n\n{target_content}"
+                    api_key = st.secrets.get("GEMINI_API_KEY", "")
+                    if not api_key:
+                        st.error("Configuration Error: GEMINI_API_KEY is missing from Streamlit secrets.")
                     else:
-                        prompt = f"Convert the following content into an engaging social media message. Keep the tone and language simple, minimal and mature. Don't make it either overly rigid, or too pretentious, showy, or overly excited. Keep the use of emojis - minimal and what's actually important:\n\n{target_content}"
-
-                    response = client.models.generate_content(
-                        model="gemini-3.6-flash",
-                        contents=prompt,
-                    )
-
-                    st.session_state.output_data = response.text
-                except KeyError:
-                    st.error(
-                        "Configuration Error: GEMINI_API_KEY is missing from Streamlit secrets."
-                    )
+                        st.session_state.output_data = generate_analysis(
+                            content=target_content,
+                            mode=utility_mode,
+                            api_key=api_key,
+                        )
                 except errors.APIError as e:
                     st.error(f"API communication error: {e}")
                 except Exception as e:
@@ -167,24 +150,46 @@ st.divider()
 if st.session_state.output_data:
     st.subheader("Output")
     st.markdown(st.session_state.output_data)
+
+    st.divider()
+    st.markdown("### Export Options")
+    col_md, col_txt = st.columns(2)
+
+    with col_md:
+        st.download_button(
+            label="Download Markdown (.md)",
+            data=st.session_state.output_data,
+            file_name="analysis.md",
+            mime="text/markdown",
+            use_container_width=True,
+        )
+
+    with col_txt:
+        st.download_button(
+            label="Download Text (.txt)",
+            data=st.session_state.output_data,
+            file_name="analysis.txt",
+            mime="text/plain",
+            use_container_width=True,
+        )
 else:
     st.subheader("Features")
     c1, c2, c3 = st.columns(3)
     with c1:
         with st.container(border=True):
-            st.markdown("### Multi-Format Input")
+            st.markdown("### Multi-Source Input")
             st.markdown(
-                "Seamlessly input raw text blocks or direct web URLs via automated scraping to get the desired outputs."
+                "Process raw text blocks or direct web URLs via automated extraction."
             )
     with c2:
         with st.container(border=True):
-            st.markdown("### Intelligent Processing")
+            st.markdown("### Intelligent Inference")
             st.markdown(
-                "Uses advanced language models like (`gemini-3.6-flash`) to analyze, scan, and reformat content."
+                "Uses Google Gemini Flash models to analyze, extract, and reformat content."
             )
     with c3:
         with st.container(border=True):
-            st.markdown("### Tailored Outputs")
+            st.markdown("### 8 Analysis Modes")
             st.markdown(
-                "Receive clean summaries, actionable steps, or well-curated social media messages instantly."
+                "Generate summaries, action items, outlines, Q&A, and targeted posts instantly."
             )

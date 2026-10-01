@@ -1,0 +1,16 @@
+# Environments
+.venv/
+env/
+venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Config
+.streamlit/secrets.toml
+
+# Guided Integration Artifacts
+docs/
+.agents/
+AGENTS.md
