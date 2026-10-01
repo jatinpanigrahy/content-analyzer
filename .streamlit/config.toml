@@ -1,0 +1,13 @@
+# Streamlit Application Configuration
+# Core theme settings establishing base color palette and typography defaults.
+
+[theme]
+base = "light"
+primaryColor = "#0f172a"
+backgroundColor = "#f8fafc"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#0f172a"
+font = "sans serif"
+
+[client]
+toolbarMode = "minimal"

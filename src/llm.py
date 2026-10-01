@@ -1,10 +1,11 @@
-"""LLM inference and prompt management module.
+"""LLM inference and prompt management module for Content Analyzer.
 
 Interfaces with the Google Gemini GenAI SDK to generate structured
-insights across multiple analysis modes with dynamic model discovery
-and automatic fallback.
+insights across multiple analysis modes, featuring dynamic frontier model
+discovery and cascading fallback.
 """
 
+import re
 from google import genai
 from google.genai import errors
 
@@ -134,10 +135,34 @@ ANALYSIS_PROMPTS: dict[str, str] = {
 
 AVAILABLE_MODES: list[str] = list(ANALYSIS_PROMPTS.keys())
 
-# Curated fallback models used if dynamic discovery is unavailable
+# Curated fallback models ordered by capability tier if dynamic discovery is unavailable
 FALLBACK_MODELS: list[str] = [
+    "gemini-pro-latest",
     "gemini-3.8-flash",
+    "gemini-3.7-flash",
     "gemini-3.6-flash",
+    "gemini-flash-latest",
+]
+
+# Tags indicating specialized, non-text, or lightweight models excluded from general inference
+EXCLUDED_MODEL_TAGS: list[str] = [
+    "lite",
+    "tts",
+    "image",
+    "audio",
+    "transcribe",
+    "robotics",
+    "banana",
+    "lyria",
+    "veo",
+    "live",
+    "customtools",
+    "embed",
+    "imagen",
+    "-exp",
+    "thinking",
+    "computer-use",
+    "aqa",
 ]
 
 
@@ -161,12 +186,43 @@ def build_prompt(content: str, mode: str) -> str:
     return template.format(content=content)
 
 
-def get_candidate_models(client: genai.Client) -> list[str]:
-    """Discover available stable Flash models from the Gemini API.
+def _model_sort_key(name: str) -> tuple[int, int, tuple[int, int]]:
+    """Generate a comparison key prioritizing frontier tiers and newer versions.
 
-    Queries the API for available models, filters for stable Flash variants,
-    and prioritizes higher version numbers. Automatically falls back to
-    curated defaults if the discovery call encounters an issue.
+    Prioritization hierarchy:
+    1. Tier level: Pro models (tier 2) rank higher than Flash models (tier 1).
+    2. Stability: Stable production releases rank higher than preview builds.
+    3. Version number: Higher semantic version numbers rank higher.
+
+    Args:
+        name: The model identifier string.
+
+    Returns:
+        A tuple suitable for sorting models in descending order of capability.
+    """
+    lower = name.lower()
+    tier = 2 if "pro" in lower else 1
+    stable_priority = 0 if "preview" in lower else 1
+
+    version_match = re.search(r"(\d+)(?:\.(\d+))?", lower)
+    if version_match:
+        major = int(version_match.group(1))
+        minor = int(version_match.group(2)) if version_match.group(2) else 0
+        version = (major, minor)
+    elif "latest" in lower:
+        version = (99, 0) if tier == 2 else (0, 0)
+    else:
+        version = (0, 0)
+
+    return (tier, stable_priority, version)
+
+
+def get_candidate_models(client: genai.Client) -> list[str]:
+    """Discover and prioritize top frontier models available from the Gemini API.
+
+    Queries the API, filters out lightweight, specialized, and non-text variants,
+    and sorts candidate models to prioritize highest-capability frontier tiers
+    (Pro variants followed by flagship Flash releases in descending version order).
 
     Args:
         client: The initialized Google GenAI client instance.
@@ -181,23 +237,24 @@ def get_candidate_models(client: genai.Client) -> list[str]:
             clean_name = raw_name.replace("models/", "").strip()
             name_lower = clean_name.lower()
 
-            # Include stable flash models while filtering out experimental or specialized builds
-            if "flash" in name_lower and not any(
-                tag in name_lower
-                for tag in ["-exp", "-preview", "thinking", "embed", "imagen"]
-            ):
-                discovered.append(clean_name)
+            if not name_lower.startswith("gemini"):
+                continue
+
+            if any(tag in name_lower for tag in EXCLUDED_MODEL_TAGS):
+                continue
+
+            if "pro" not in name_lower and "flash" not in name_lower:
+                continue
+
+            discovered.append(clean_name)
 
         if discovered:
-            # Sort descending to favor newer release versions
-            discovered.sort(reverse=True)
-            # Ensure our known reliable models are in the chain
+            discovered.sort(key=_model_sort_key, reverse=True)
             for fallback in FALLBACK_MODELS:
                 if fallback not in discovered:
                     discovered.append(fallback)
             return discovered
     except Exception:
-        # Fall back gracefully to curated models if discovery fails
         pass
 
     return list(FALLBACK_MODELS)
@@ -209,11 +266,11 @@ def generate_analysis(
     api_key: str,
     model: str | None = None,
 ) -> tuple[str, str]:
-    """Call Google Gemini to analyze content using the selected mode.
+    """Execute LLM inference for content analysis with automated failover.
 
-    Dynamically selects available Flash models and automatically cascades
-    through alternative models if temporary capacity (503), rate limit (429),
-    or availability (404) errors occur.
+    Evaluates candidate models in order of capability, automatically cascading
+    to alternative models if transient capacity (503), rate limit (429), or
+    model availability (404) exceptions occur.
 
     Args:
         content: The plain text content to analyze.
@@ -226,7 +283,7 @@ def generate_analysis(
 
     Raises:
         ValueError: If content or api_key is missing, or mode is invalid.
-        google.genai.errors.APIError: If all candidate models fail due to API communication errors.
+        google.genai.errors.APIError: If all candidate models fail due to API errors.
         RuntimeError: If model execution finishes without generating text.
     """
     if not api_key:
@@ -253,8 +310,8 @@ def generate_analysis(
             last_error = exc
             error_code = getattr(exc, "code", None)
             error_msg = str(exc)
-            # If the model is experiencing temporary capacity issues (503),
-            # rate limits (429), or is unavailable (404), cascade to the next candidate
+            # If the model encounters temporary capacity spikes (503), quota limits (429),
+            # or deprecated availability (404), cascade to the next candidate
             is_transient = (
                 error_code in (404, 429, 503)
                 or "503" in error_msg

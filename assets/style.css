@@ -1,29 +1,81 @@
 /* Application Theme Stylesheet */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600;700;800&display=swap');
 
 html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 /* Background layout */
 .stApp {
-    background-color: #0a0a0c;
+    background-color: #f8fafc;
 }
 
-/* Text input controls */
+/* Typography and headings */
+h1 {
+    font-family: 'Manrope', sans-serif !important;
+    color: #0f172a !important;
+    font-size: clamp(2rem, 3.5vw, 2.75rem) !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.05em !important;
+    text-transform: uppercase !important;
+    line-height: 1.15 !important;
+    margin-bottom: 0.5rem !important;
+}
+
+h2, h3 {
+    font-family: 'Manrope', sans-serif !important;
+    color: #0f172a !important;
+    font-weight: 700 !important;
+}
+
+div[data-testid="stMarkdownContainer"] p,
+div[data-testid="stMarkdownContainer"] li,
+div[data-testid="stMarkdownContainer"] span {
+    color: #334155;
+    line-height: 1.6;
+    font-size: 1rem;
+}
+
+/* Container cards */
+div[data-testid="stContainer"] {
+    background-color: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+}
+
+/* Form text input controls */
 .stTextArea textarea {
-    background-color: #121214 !important;
-    border: 1px solid #27272a !important;
-    color: #ededed !important;
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
     border-radius: 8px;
     padding: 12px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.95rem;
+}
+
+.stTextArea textarea::placeholder {
+    color: #94a3b8 !important;
+}
+
+.stTextArea textarea:focus {
+    border-color: #0f172a !important;
+    box-shadow: 0 0 0 1px #0f172a !important;
 }
 
 /* Dropdown selection controls */
 .stSelectbox div[data-baseweb="select"] {
-    background-color: #121214 !important;
-    border: 1px solid #27272a !important;
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
     border-radius: 8px;
+}
+
+.stSelectbox div[data-baseweb="select"] div {
+    color: #0f172a !important;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.95rem;
 }
 
 div[data-baseweb="select"] input {
@@ -31,15 +83,24 @@ div[data-baseweb="select"] input {
     cursor: pointer !important;
 }
 
+/* Control labels */
+label, .stSelectbox label, .stTextArea label {
+    color: #1e293b !important;
+    font-weight: 600 !important;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.875rem;
+    margin-bottom: 4px;
+}
+
 /* Action and download buttons */
 .stButton button,
 .stDownloadButton button {
-    background-color: #ededed !important;
-    border: none !important;
+    background-color: #0f172a !important;
+    border: 1px solid #0f172a !important;
     border-radius: 8px;
     transition: all 0.2s ease;
     width: 100%;
-    padding: 0.5rem 1rem;
+    padding: 0.55rem 1rem;
 }
 
 .stButton button p,
@@ -48,35 +109,62 @@ div[data-baseweb="select"] input {
 .stDownloadButton button p,
 .stDownloadButton button div,
 .stDownloadButton button span {
-    color: #0a0a0c !important;
+    color: #ffffff !important;
     font-weight: 600 !important;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
 }
 
 .stButton button:hover,
 .stDownloadButton button:hover {
-    background-color: #ffffff !important;
+    background-color: #1e293b !important;
+    border-color: #1e293b !important;
     transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
-/* Container cards */
-div[data-testid="stContainer"] {
-    background-color: #121214;
-    border: 1px solid #27272a;
-    border-radius: 12px;
-    padding: 1.25rem;
+/* Status indicator containers */
+div[data-testid="stStatus"] {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 12px !important;
+    color: #0f172a !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
-/* Typography and headings */
-h1, h2, h3, p, span, div {
-    color: #ededed;
+div[data-testid="stStatus"] summary {
+    color: #0f172a !important;
+    font-weight: 600 !important;
+    font-family: 'Manrope', sans-serif;
 }
 
-/* Captions and metadata text */
+div[data-testid="stStatus"] p,
+div[data-testid="stStatus"] span {
+    color: #334155 !important;
+    font-family: 'Inter', sans-serif;
+}
+
+/* Metadata captions and badge formatting */
 .stCaption, .stCaption p {
-    color: #a1a1aa !important;
+    color: #475569 !important;
+    font-size: 0.875rem !important;
+    font-weight: 500 !important;
 }
 
-/* Hide default platform menu and footer */
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
-header {visibility: hidden;}
+.stCaption code {
+    display: inline-block !important;
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+    font-family: 'Inter', monospace !important;
+    font-weight: 600 !important;
+    font-size: 0.8125rem !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6px !important;
+    padding: 2px 8px !important;
+    margin-left: 4px !important;
+}
+
+/* Platform chrome */
+#MainMenu { visibility: hidden; }
+footer { visibility: hidden; }
+header { visibility: hidden; }

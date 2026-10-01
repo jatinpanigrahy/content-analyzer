@@ -5,6 +5,7 @@ route content through Google Gemini analysis modes, and export results
 as Markdown, Plain Text, or PDF with one-click clipboard copying.
 """
 
+from datetime import datetime
 import json
 from pathlib import Path
 import streamlit as st
@@ -17,7 +18,11 @@ from src.pdf_gen import create_pdf_from_text
 
 
 def load_stylesheet(css_path: str = "assets/style.css") -> None:
-    """Load external CSS styling into the Streamlit document."""
+    """Load external CSS styling into the Streamlit document.
+
+    Args:
+        css_path: Relative or absolute path to the CSS file.
+    """
     path = Path(css_path)
     if path.exists():
         with open(path, "r", encoding="utf-8") as f:
@@ -25,17 +30,21 @@ def load_stylesheet(css_path: str = "assets/style.css") -> None:
 
 
 def render_copy_button(text: str) -> None:
-    """Render a one-click clipboard copy button with transient confirmation."""
+    """Render a one-click clipboard copy button with transient confirmation.
+
+    Args:
+        text: The text string to copy to the system clipboard.
+    """
     escaped_text = json.dumps(text)
     button_html = f"""
     <div style="display: flex; align-items: center; margin: 0; padding: 0;">
         <button id="copy-btn" onclick="copyContent()" style="
-            background-color: #ededed;
-            color: #0a0a0c;
-            border: none;
+            background-color: #0f172a;
+            color: #ffffff;
+            border: 1px solid #0f172a;
             border-radius: 8px;
-            padding: 0.45rem 1rem;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            padding: 0.5rem 1rem;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             font-size: 13px;
             font-weight: 600;
             cursor: pointer;
@@ -49,11 +58,13 @@ def render_copy_button(text: str) -> None:
             const btn = document.getElementById("copy-btn");
             btn.innerText = "Copied to Clipboard";
             btn.style.backgroundColor = "#22c55e";
+            btn.style.borderColor = "#22c55e";
             btn.style.color = "#ffffff";
             setTimeout(function() {{
                 btn.innerText = "Copy to Clipboard";
-                btn.style.backgroundColor = "#ededed";
-                btn.style.color = "#0a0a0c";
+                btn.style.backgroundColor = "#0f172a";
+                btn.style.borderColor = "#0f172a";
+                btn.style.color = "#ffffff";
             }}, 2000);
         }}).catch(function(err) {{
             console.error("Clipboard write error:", err);
@@ -66,7 +77,7 @@ def render_copy_button(text: str) -> None:
 
 # Page setup
 st.set_page_config(
-    page_title="Content Analyzer",
+    page_title="CONTENT ANALYZER",
     layout="wide",
     page_icon="assets/favicon.svg",
     initial_sidebar_state="collapsed",
@@ -85,9 +96,9 @@ if "model_used" not in st.session_state:
 _, center_col, _ = st.columns([1, 6, 1])
 
 with center_col:
-    st.title("Content Analyzer")
+    st.title("CONTENT ANALYZER")
     st.markdown(
-        "Transform articles, notes, or web pages into structured insights, summaries, or communication formats."
+        "Distill articles, notes, and links into clear, structured insights."
     )
 
     # Input card container
@@ -167,12 +178,17 @@ with center_col:
         with col_copy:
             render_copy_button(st.session_state.output_data)
 
+        # Generate structured timestamp and file prefix
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        mode_slug = utility_mode.lower().replace(" ", "_").replace("'", "")
+        base_filename = f"content_analyzer_{mode_slug}_{timestamp}"
+
         col_md, col_txt, col_pdf = st.columns(3)
         with col_md:
             st.download_button(
                 label="Download Markdown (.md)",
                 data=st.session_state.output_data,
-                file_name="analysis.md",
+                file_name=f"{base_filename}.md",
                 mime="text/markdown",
                 use_container_width=True,
             )
@@ -181,7 +197,7 @@ with center_col:
             st.download_button(
                 label="Download Text (.txt)",
                 data=st.session_state.output_data,
-                file_name="analysis.txt",
+                file_name=f"{base_filename}.txt",
                 mime="text/plain",
                 use_container_width=True,
             )
@@ -195,7 +211,7 @@ with center_col:
                 st.download_button(
                     label="Download PDF (.pdf)",
                     data=pdf_bytes,
-                    file_name="analysis.pdf",
+                    file_name=f"{base_filename}.pdf",
                     mime="application/pdf",
                     use_container_width=True,
                 )
@@ -208,17 +224,17 @@ with center_col:
             with st.container(border=True):
                 st.markdown("### :material/language: Any Source")
                 st.markdown(
-                    "Process raw text blocks or web URLs via automated extraction."
+                    "Paste raw text or any web link for instant content extraction."
                 )
         with c2:
             with st.container(border=True):
-                st.markdown("### :material/memory: Gemini Flash")
+                st.markdown("### :material/memory: Frontier Intelligence")
                 st.markdown(
-                    "High-performance inference with automated model discovery and fallback."
+                    "Runs on high-capability models with automatic demand routing."
                 )
         with c3:
             with st.container(border=True):
-                st.markdown("### :material/dashboard: 8 Analysis Modes")
+                st.markdown("### :material/dashboard: 8 Specialized Formats")
                 st.markdown(
-                    "Generate summaries, action items, outlines, Q&A, and targeted posts."
+                    "From quick executive summaries to prioritized action plans and draft posts."
                 )
